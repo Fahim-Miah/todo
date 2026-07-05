@@ -6,17 +6,22 @@ const supabase = window.supabase.createClient(
     SUPABASE_ANON_KEY
 );
 
-async function testConnection() {
-    const { data, error } = await supabase
-        .from("todos")
-        .select("*");
+async function addTask() {
 
-    console.log(data);
+    const { error } = await supabase
+        .from("todos")
+        .insert([
+            {
+                title: "Buy Milk",
+                category: "Shopping",
+                completed: false
+            }
+        ]);
 
     if (error) {
-        console.error(error);
+        console.log(error);
     }
 }
 
-testConnection();
+addTask();
 
