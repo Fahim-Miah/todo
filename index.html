@@ -4,222 +4,156 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Task Manager</title>
+<!-- Use explicit UMD build for reliability -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #f4f6fb;
-    --card: #ffffff;
-    --primary: #4f46e5;
-    --primary-dark: #3730a3;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --danger: #ef4444;
-    --success: #10b981;
+    --bg: #f4f6fb; --card: #ffffff; --primary: #4f46e5;
+    --primary-dark: #3730a3; --text: #1f2937; --muted: #6b7280;
+    --border: #e5e7eb; --danger: #ef4444; --success: #10b981;
     --warning: #f59e0b;
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 16px;
+    background: var(--bg); color: var(--text); min-height: 100vh; padding: 16px;
   }
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 20px;
-  }
+  .container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
   header {
     grid-column: 1 / -1;
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: white;
-    padding: 24px;
-    border-radius: 12px;
+    color: white; padding: 24px; border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    display: flex; justify-content: space-between; align-items: center;
   }
   header h1 { font-size: 1.8rem; margin-bottom: 4px; }
   header p { opacity: 0.9; font-size: 0.95rem; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #ef4444; display: inline-block; margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: #10b981; }
+  .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .status-text { font-size: 0.85rem; opacity: 0.9; }
 
   .panel {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 20px;
+    background: var(--card); border-radius: 12px; padding: 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   }
   .panel h2 {
-    font-size: 1.1rem;
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    font-size: 1.1rem; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
   }
   button {
-    cursor: pointer;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 0.9rem;
-    font-weight: 500;
+    cursor: pointer; border: none; border-radius: 8px;
+    padding: 8px 14px; font-size: 0.9rem; font-weight: 500;
     transition: transform 0.1s, opacity 0.2s;
   }
   button:hover { opacity: 0.9; }
   button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary { background: var(--primary); color: white; }
-  .btn-danger { background: var(--danger); color: white; }
   .btn-ghost { background: transparent; color: var(--muted); }
   .btn-ghost:hover { background: var(--bg); }
 
   input, select, textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-family: inherit;
-    background: white;
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 0.95rem; font-family: inherit; background: white;
   }
   input:focus, select:focus, textarea:focus {
-    outline: none;
-    border-color: var(--primary);
+    outline: none; border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(79,70,229,0.15);
   }
 
-  /* Categories */
   .category-form { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; margin-bottom: 16px; }
   .category-form input[type="color"] { width: 44px; padding: 2px; height: 40px; cursor: pointer; }
   .category-list { display: flex; flex-direction: column; gap: 10px; }
   .category-item {
-    padding: 12px;
-    border-radius: 8px;
-    border-left: 4px solid;
-    background: var(--bg);
-    cursor: pointer;
-    transition: background 0.15s;
+    padding: 12px; border-radius: 8px; border-left: 4px solid;
+    background: var(--bg); cursor: pointer; transition: background 0.15s;
   }
   .category-item:hover { background: #eef0f7; }
   .category-item.active { background: #eef0f7; }
   .category-item .cat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
   }
   .category-item .cat-name { font-weight: 600; }
-  .category-item .cat-count { font-size: 0.8rem; color: var(--muted); }
-  .progress-bar {
-    height: 6px;
-    background: #e5e7eb;
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: 4px;
-  }
-  .progress-fill {
-    height: 100%;
-    background: var(--success);
-    transition: width 0.3s;
-  }
+  .category-item .cat-count { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .progress-fill { height: 100%; background: var(--success); transition: width 0.3s; }
   .progress-text { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
 
-  /* Tasks */
-  .task-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-  }
+  .task-controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
   .task-controls input { flex: 1; min-width: 180px; }
   .task-controls select { flex: 0 0 140px; }
   .task-list { display: flex; flex-direction: column; gap: 10px; }
   .task-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: var(--bg);
-    border-radius: 8px;
-    border-left: 4px solid;
-    transition: opacity 0.2s;
+    display: flex; align-items: center; gap: 12px; padding: 12px;
+    background: var(--bg); border-radius: 8px; border-left: 4px solid;
+    transition: opacity 0.2s, background 0.3s;
   }
+  .task-item.flash { background: #fef3c7; }
   .task-item.completed { opacity: 0.55; }
   .task-item.completed .task-title { text-decoration: line-through; }
-  .task-checkbox {
-    width: 22px; height: 22px;
-    cursor: pointer;
-    accent-color: var(--primary);
-    flex-shrink: 0;
-  }
+  .task-checkbox { width: 22px; height: 22px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
   .task-content { flex: 1; min-width: 0; }
   .task-title { font-weight: 500; word-break: break-word; }
   .task-meta { font-size: 0.8rem; color: var(--muted); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
   .priority-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
   }
   .priority-high { background: #fee2e2; color: #991b1b; }
   .priority-medium { background: #fef3c7; color: #92400e; }
   .priority-low { background: #dcfce7; color: #166534; }
   .task-actions { display: flex; gap: 4px; }
-  .icon-btn {
-    background: transparent;
-    padding: 6px 8px;
-    font-size: 1rem;
-    color: var(--muted);
-  }
+  .icon-btn { background: transparent; padding: 6px 8px; font-size: 1rem; color: var(--muted); }
   .icon-btn:hover { color: var(--primary); }
   .icon-btn.delete:hover { color: var(--danger); }
 
-  .empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--muted);
+  .empty-state, .loading-state, .error-state {
+    text-align: center; padding: 40px 20px; color: var(--muted);
   }
-  .empty-state .emoji { font-size: 2.5rem; margin-bottom: 10px; }
+  .empty-state .emoji, .error-state .emoji { font-size: 2.5rem; margin-bottom: 10px; }
+  .spinner {
+    display: inline-block; width: 20px; height: 20px;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Modal */
+  .error-state {
+    background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 8px; color: #991b1b; text-align: left;
+  }
+  .error-state h4 { color: #7f1d1d; margin-bottom: 8px; }
+  .error-state ul { margin: 10px 0 0 20px; font-size: 0.9rem; line-height: 1.6; }
+  .error-state code {
+    background: rgba(0,0,0,0.05); padding: 2px 6px;
+    border-radius: 4px; font-size: 0.85rem;
+  }
+
   .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 16px;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
   }
   .modal-overlay.active { display: flex; }
   .modal {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    width: 100%;
-    max-width: 480px;
-    max-height: 90vh;
-    overflow-y: auto;
+    background: white; border-radius: 12px; padding: 24px;
+    width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
   }
   .modal h3 { margin-bottom: 16px; }
   .form-group { margin-bottom: 14px; }
   .form-group label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin-bottom: 6px;
-    color: var(--muted);
+    display: block; font-size: 0.85rem; font-weight: 500;
+    margin-bottom: 6px; color: var(--muted);
   }
-  .modal-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
-  /* Responsive */
   @media (max-width: 768px) {
     .container { grid-template-columns: 1fr; }
     header h1 { font-size: 1.4rem; }
@@ -231,26 +165,32 @@
 <body>
 <div class="container">
   <header>
-    <h1>📋 My Task Manager</h1>
-    <p>Organize your life, one task at a time.</p>
+    <div>
+      <h1>📋 My Task Manager</h1>
+      <p>Organize your life, one task at a time.</p>
+    </div>
+    <div class="status-text">
+      <span class="status-dot connecting" id="statusDot"></span>
+      <span id="statusText">Connecting...</span>
+    </div>
   </header>
 
-  <!-- Categories Panel -->
   <aside class="panel">
     <h2>Categories</h2>
     <div class="category-form">
       <input type="text" id="catName" placeholder="New category..." maxlength="30">
       <input type="color" id="catColor" value="#4f46e5" title="Pick a color">
-      <button class="btn-primary" onclick="addCategory()">Add</button>
+      <button class="btn-primary" onclick="handleAddCategory()">Add</button>
     </div>
-    <div class="category-list" id="categoryList"></div>
+    <div class="category-list" id="categoryList">
+      <div class="loading-state"><span class="spinner"></span> Loading categories...</div>
+    </div>
   </aside>
 
-  <!-- Tasks Panel -->
   <main class="panel">
     <h2>
       <span id="taskPanelTitle">All Tasks</span>
-      <button class="btn-primary" onclick="openTaskModal()">+ New Task</button>
+      <button class="btn-primary" onclick="handleOpenTaskModal()">+ New Task</button>
     </h2>
     <div class="task-controls">
       <input type="text" id="searchInput" placeholder="🔍 Search tasks..." oninput="renderTasks()">
@@ -261,7 +201,9 @@
         <option value="low">Low</option>
       </select>
     </div>
-    <div class="task-list" id="taskList"></div>
+    <div class="task-list" id="taskList">
+      <div class="loading-state"><span class="spinner"></span> Loading tasks...</div>
+    </div>
   </main>
 </div>
 
@@ -290,118 +232,326 @@
       <textarea id="taskNotes" rows="3" placeholder="Any details..."></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeTaskModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveTask()">Save Task</button>
+      <button class="btn-ghost" onclick="handleCloseTaskModal()">Cancel</button>
+      <button class="btn-primary" id="saveTaskBtn" onclick="handleSaveTask()">Save Task</button>
     </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase.js"></script>
-<script src="script.js"></script>
-
 <script>
-  // ---------- State ----------
-  let state = JSON.parse(localStorage.getItem('todoState')) || {
-    categories: [
-      { id: 'c1', name: 'Work', color: '#4f46e5' },
-      { id: 'c2', name: 'Personal', color: '#10b981' },
-      { id: 'c3', name: 'Shopping', color: '#f59e0b' }
-    ],
+(function() {
+  'use strict';
+
+  console.log('[TodoApp] Script loaded');
+
+  // ============ SUPABASE CONFIG ============
+  // ⚠️ REPLACE THESE with your values from Supabase → Settings → API
+  const SUPABASE_URL = 'https://rvbkbpozkamhgwpmknae.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2YmticG96a2FtaGd3cG1rbmFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyMjg2ODAsImV4cCI6MjA5ODgwNDY4MH0.T9JH_myyywMvUY2sbwU62cP5VUH8tdI5s-n4OSE1bzk';
+
+  // ============ INITIALIZE SUPABASE CLIENT ============
+  // Use 'sb' instead of 'supabase' to avoid shadowing window.supabase
+  var sb = null;
+  var isConfigured = false;
+
+  try {
+    // Check if CDN loaded successfully
+    if (typeof window.supabase === 'undefined') {
+      throw new Error('Supabase library failed to load from CDN. Check your internet connection or ad blocker.');
+    }
+
+    // Create client
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    isConfigured = true;
+    console.log('[TodoApp] Supabase client initialized');
+  } catch (err) {
+    console.error('[TodoApp] Initialization error:', err);
+  }
+
+  // ============ STATE ============
+  var state = {
+    categories: [],
     tasks: [],
     activeCategoryId: 'all',
-    editingTaskId: null
+    editingTaskId: null,
+    loading: { categories: true, tasks: true },
+    realtimeReady: false
   };
 
-  const save = () => localStorage.setItem('todoState', JSON.stringify(state));
-  const uid = () => 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  // ============ HELPERS ============
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c) {
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c];
+    });
+  }
 
-  // ---------- Categories ----------
-  function addCategory() {
-    const name = document.getElementById('catName').value.trim();
-    const color = document.getElementById('catColor').value;
-    if (!name) return alert('Please enter a category name.');
-    if (state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-      return alert('That category already exists.');
+  function setConnectionStatus(status, text) {
+    var dot = document.getElementById('statusDot');
+    if (dot) {
+      dot.className = 'status-dot ' + status;
     }
-    state.categories.push({ id: uid(), name, color });
-    document.getElementById('catName').value = '';
-    save(); renderCategories();
+    var statusText = document.getElementById('statusText');
+    if (statusText) {
+      statusText.textContent = text;
+    }
   }
 
-  function deleteCategory(id) {
+  function showErrorIn(containerId, title, message, details) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    var detailsHtml = '';
+    if (details && details.length > 0) {
+      detailsHtml = '<ul>' + details.map(function(d) {
+        return '<li>' + d + '</li>';
+      }).join('') + '</ul>';
+    }
+
+    container.innerHTML =
+      '<div class="error-state">' +
+        '<div class="emoji">⚠️</div>' +
+        '<h4>' + escapeHtml(title) + '</h4>' +
+        '<p>' + escapeHtml(message) + '</p>' +
+        detailsHtml +
+      '</div>';
+  }
+
+  function requireClient() {
+    if (!sb) {
+      alert('Not connected to Supabase. Please check your credentials and refresh the page.');
+      return false;
+    }
+    return true;
+  }
+
+  // ============ CATEGORIES ============
+  async function loadCategories() {
+    if (!sb) {
+      state.loading.categories = false;
+      showErrorIn('categoryList', 'Not connected', 'Supabase client not initialized', [
+        'Check that SUPABASE_URL and SUPABASE_ANON_KEY are set correctly',
+        'Open browser console (F12) for details'
+      ]);
+      return false;
+    }
+
+    try {
+      var result = await sb
+        .from('categories')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      state.loading.categories = false;
+
+      if (result.error) {
+        console.error('[TodoApp] Load categories error:', result.error);
+        showErrorIn('categoryList', 'Could not load categories', result.error.message, [
+          'Check that you ran the SQL schema in Supabase SQL Editor',
+          'Verify RLS policies allow access',
+          'Make sure the "categories" table exists'
+        ]);
+        return false;
+      }
+
+      state.categories = result.data || [];
+      renderCategories();
+      return true;
+    } catch (err) {
+      state.loading.categories = false;
+      console.error('[TodoApp] Load categories exception:', err);
+      showErrorIn('categoryList', 'Network error', 'Could not reach Supabase', [err.message]);
+      return false;
+    }
+  }
+
+  async function handleAddCategory() {
+    if (!requireClient()) return;
+
+    var nameInput = document.getElementById('catName');
+    var colorInput = document.getElementById('catColor');
+    var name = nameInput.value.trim();
+    var color = colorInput.value;
+
+    if (!name) {
+      alert('Please enter a category name.');
+      return;
+    }
+
+    var exists = state.categories.some(function(c) {
+      return c.name.toLowerCase() === name.toLowerCase();
+    });
+    if (exists) {
+      alert('That category already exists.');
+      return;
+    }
+
+    try {
+      var result = await sb
+        .from('categories')
+        .insert({ name: name, color: color })
+        .select()
+        .single();
+
+      if (result.error) {
+        alert('Failed to add category: ' + result.error.message);
+        return;
+      }
+
+      // Add to state if not already there (realtime might add it first)
+      if (!state.categories.find(function(c) { return c.id === result.data.id; })) {
+        state.categories.push(result.data);
+      }
+
+      nameInput.value = '';
+      renderCategories();
+    } catch (err) {
+      alert('Error adding category: ' + err.message);
+    }
+  }
+
+  async function handleDeleteCategory(id) {
+    if (!requireClient()) return;
     if (!confirm('Delete this category and all its tasks?')) return;
-    state.categories = state.categories.filter(c => c.id !== id);
-    state.tasks = state.tasks.filter(t => t.categoryId !== id);
-    if (state.activeCategoryId === id) state.activeCategoryId = 'all';
-    save(); renderCategories(); renderTasks();
+
+    try {
+      var result = await sb.from('categories').delete().eq('id', id);
+      if (result.error) {
+        alert('Failed to delete: ' + result.error.message);
+        return;
+      }
+
+      state.categories = state.categories.filter(function(c) { return c.id !== id; });
+      state.tasks = state.tasks.filter(function(t) { return t.category_id !== id; });
+      if (state.activeCategoryId === id) state.activeCategoryId = 'all';
+      renderCategories();
+      renderTasks();
+    } catch (err) {
+      alert('Error deleting category: ' + err.message);
+    }
   }
 
-  function selectCategory(id) {
+  function handleSelectCategory(id) {
     state.activeCategoryId = id;
-    save(); renderCategories(); renderTasks();
+    renderCategories();
+    renderTasks();
   }
 
   function renderCategories() {
-    const list = document.getElementById('categoryList');
-    // "All" item
-    const allCount = state.tasks.length;
-    const allDone = state.tasks.filter(t => t.completed).length;
-    let html = `
-      <div class="category-item ${state.activeCategoryId === 'all' ? 'active' : ''}"
-           style="border-left-color:#6b7280" onclick="selectCategory('all')">
-        <div class="cat-header">
-          <span class="cat-name">📁 All Tasks</span>
-          <span class="cat-count">${allDone}/${allCount}</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${allCount ? (allDone/allCount)*100 : 0}%"></div></div>
-        <div class="progress-text">${allCount ? Math.round((allDone/allCount)*100) : 0}% complete</div>
-      </div>`;
-    state.categories.forEach(c => {
-      const tasks = state.tasks.filter(t => t.categoryId === c.id);
-      const done = tasks.filter(t => t.completed).length;
-      const pct = tasks.length ? Math.round((done/tasks.length)*100) : 0;
-      html += `
-        <div class="category-item ${state.activeCategoryId === c.id ? 'active' : ''}"
-             style="border-left-color:${c.color}" onclick="selectCategory('${c.id}')">
-          <div class="cat-header">
-            <span class="cat-name" style="color:${c.color}">${escapeHtml(c.name)}</span>
-            <span class="cat-count">
-              ${done}/${tasks.length}
-              <button class="icon-btn delete" onclick="event.stopPropagation(); deleteCategory('${c.id}')" title="Delete">✕</button>
-            </span>
-          </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-          <div class="progress-text">${pct}% complete</div>
-        </div>`;
+    var list = document.getElementById('categoryList');
+    if (!list) return;
+    if (state.loading.categories) return; // keep spinner
+
+    var allCount = state.tasks.length;
+    var allDone = state.tasks.filter(function(t) { return t.completed; }).length;
+
+    var html =
+      '<div class="category-item ' + (state.activeCategoryId === 'all' ? 'active' : '') + '" ' +
+           'style="border-left-color:#6b7280" onclick="handleSelectCategory(\'all\')">' +
+        '<div class="cat-header">' +
+          '<span class="cat-name">📁 All Tasks</span>' +
+          '<span class="cat-count">' + allDone + '/' + allCount + '</span>' +
+        '</div>' +
+        '<div class="progress-bar"><div class="progress-fill" style="width:' + (allCount ? (allDone/allCount)*100 : 0) + '%"></div></div>' +
+        '<div class="progress-text">' + (allCount ? Math.round((allDone/allCount)*100) : 0) + '% complete</div>' +
+      '</div>';
+
+    state.categories.forEach(function(c) {
+      var tasks = state.tasks.filter(function(t) { return t.category_id === c.id; });
+      var done = tasks.filter(function(t) { return t.completed; }).length;
+      var pct = tasks.length ? Math.round((done/tasks.length)*100) : 0;
+
+      html +=
+        '<div class="category-item ' + (state.activeCategoryId === c.id ? 'active' : '') + '" ' +
+             'style="border-left-color:' + c.color + '" onclick="handleSelectCategory(\'' + c.id + '\')">' +
+          '<div class="cat-header">' +
+            '<span class="cat-name" style="color:' + c.color + '">' + escapeHtml(c.name) + '</span>' +
+            '<span class="cat-count">' +
+              done + '/' + tasks.length +
+              '<button class="icon-btn delete" onclick="event.stopPropagation(); handleDeleteCategory(\'' + c.id + '\')" title="Delete">✕</button>' +
+            '</span>' +
+          '</div>' +
+          '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="progress-text">' + pct + '% complete</div>' +
+        '</div>';
     });
+
     list.innerHTML = html;
 
-    // Update panel title
-    const title = document.getElementById('taskPanelTitle');
-    if (state.activeCategoryId === 'all') title.textContent = 'All Tasks';
-    else {
-      const cat = state.categories.find(c => c.id === state.activeCategoryId);
-      title.textContent = cat ? cat.name : 'Tasks';
+    var title = document.getElementById('taskPanelTitle');
+    if (title) {
+      if (state.activeCategoryId === 'all') {
+        title.textContent = 'All Tasks';
+      } else {
+        var cat = state.categories.find(function(c) { return c.id === state.activeCategoryId; });
+        title.textContent = cat ? cat.name : 'Tasks';
+      }
     }
   }
 
-  // ---------- Tasks ----------
-  function openTaskModal(taskId = null) {
-    if (state.categories.length === 0) {
-      return alert('Please create a category first.');
+  // ============ TASKS ============
+  async function loadTasks() {
+    if (!sb) {
+      state.loading.tasks = false;
+      showErrorIn('taskList', 'Not connected', 'Supabase client not initialized', [
+        'Check console for details'
+      ]);
+      return false;
     }
-    const catSelect = document.getElementById('taskCategory');
-    catSelect.innerHTML = state.categories.map(c =>
-      `<option value="${c.id}">${escapeHtml(c.name)}</option>`
-    ).join('');
+
+    try {
+      var result = await sb
+        .from('tasks')
+        .select('*, categories(id, name, color)')
+        .order('created_at', { ascending: false });
+
+      state.loading.tasks = false;
+
+      if (result.error) {
+        console.error('[TodoApp] Load tasks error:', result.error);
+        showErrorIn('taskList', 'Could not load tasks', result.error.message, [
+          'Check that the "tasks" table exists',
+          'Verify RLS policies allow access',
+          'Make sure the foreign key to categories is set up'
+        ]);
+        return false;
+      }
+
+      state.tasks = result.data || [];
+      renderCategories(); // update counts
+      renderTasks();
+      return true;
+    } catch (err) {
+      state.loading.tasks = false;
+      console.error('[TodoApp] Load tasks exception:', err);
+      showErrorIn('taskList', 'Network error', 'Could not reach Supabase', [err.message]);
+      return false;
+    }
+  }
+
+  function handleOpenTaskModal(taskId) {
+    if (state.categories.length === 0) {
+      alert('Please create a category first.');
+      return;
+    }
+
+    var catSelect = document.getElementById('taskCategory');
+    catSelect.innerHTML = state.categories.map(function(c) {
+      return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+    }).join('');
 
     if (taskId) {
-      const t = state.tasks.find(x => x.id === taskId);
+      var t = state.tasks.find(function(x) { return x.id === taskId; });
       if (!t) return;
       document.getElementById('modalTitle').textContent = 'Edit Task';
       document.getElementById('taskName').value = t.name;
-      catSelect.value = t.categoryId;
+      catSelect.value = t.category_id;
       document.getElementById('taskPriority').value = t.priority;
       document.getElementById('taskNotes').value = t.notes || '';
       state.editingTaskId = taskId;
@@ -410,130 +560,359 @@
       document.getElementById('taskName').value = '';
       document.getElementById('taskPriority').value = 'medium';
       document.getElementById('taskNotes').value = '';
-      if (state.activeCategoryId !== 'all') catSelect.value = state.activeCategoryId;
+      if (state.activeCategoryId !== 'all') {
+        catSelect.value = state.activeCategoryId;
+      }
       state.editingTaskId = null;
     }
+
     document.getElementById('taskModal').classList.add('active');
-    setTimeout(() => document.getElementById('taskName').focus(), 50);
+    setTimeout(function() {
+      document.getElementById('taskName').focus();
+    }, 50);
   }
 
-  function closeTaskModal() {
+  function handleCloseTaskModal() {
     document.getElementById('taskModal').classList.remove('active');
     state.editingTaskId = null;
   }
 
-  function saveTask() {
-    const name = document.getElementById('taskName').value.trim();
-    const categoryId = document.getElementById('taskCategory').value;
-    const priority = document.getElementById('taskPriority').value;
-    const notes = document.getElementById('taskNotes').value.trim();
-    if (!name) return alert('Task name is required.');
+  async function handleSaveTask() {
+    if (!requireClient()) return;
 
-    if (state.editingTaskId) {
-      const t = state.tasks.find(x => x.id === state.editingTaskId);
-      Object.assign(t, { name, categoryId, priority, notes });
-    } else {
-      state.tasks.push({
-        id: uid(), name, categoryId, priority, notes,
-        completed: false, createdAt: Date.now()
-      });
-    }
-    save();
-    closeTaskModal();
-    renderCategories();
-    renderTasks();
-  }
+    var name = document.getElementById('taskName').value.trim();
+    var categoryId = document.getElementById('taskCategory').value;
+    var priority = document.getElementById('taskPriority').value;
+    var notes = document.getElementById('taskNotes').value.trim();
 
-  function deleteTask(id) {
-    if (!confirm('Delete this task?')) return;
-    state.tasks = state.tasks.filter(t => t.id !== id);
-    save(); renderCategories(); renderTasks();
-  }
-
-  function toggleTask(id) {
-    const t = state.tasks.find(x => x.id === id);
-    if (t) { t.completed = !t.completed; save(); renderCategories(); renderTasks(); }
-  }
-
-  function renderTasks() {
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    const prioFilter = document.getElementById('filterPriority').value;
-
-    let tasks = state.tasks.slice();
-    if (state.activeCategoryId !== 'all') {
-      tasks = tasks.filter(t => t.categoryId === state.activeCategoryId);
-    }
-    if (search) {
-      tasks = tasks.filter(t =>
-        t.name.toLowerCase().includes(search) ||
-        (t.notes || '').toLowerCase().includes(search) ||
-        (state.categories.find(c => c.id === t.categoryId)?.name || '').toLowerCase().includes(search)
-      );
-    }
-    if (prioFilter !== 'all') tasks = tasks.filter(t => t.priority === prioFilter);
-
-    // Sort: incomplete first, then by priority (high > medium > low), then newest
-    const prioOrder = { high: 0, medium: 1, low: 2 };
-    tasks.sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      if (prioOrder[a.priority] !== prioOrder[b.priority])
-        return prioOrder[a.priority] - prioOrder[b.priority];
-      return b.createdAt - a.createdAt;
-    });
-
-    const list = document.getElementById('taskList');
-    if (tasks.length === 0) {
-      list.innerHTML = `
-        <div class="empty-state">
-          <div class="emoji">✨</div>
-          <p>${state.tasks.length === 0 ? 'No tasks yet. Create one to get started!' : 'No tasks match your filters.'}</p>
-        </div>`;
+    if (!name) {
+      alert('Task name is required.');
       return;
     }
 
-    list.innerHTML = tasks.map(t => {
-      const cat = state.categories.find(c => c.id === t.categoryId);
-      const catName = cat ? cat.name : 'Uncategorized';
-      const catColor = cat ? cat.color : '#6b7280';
-      return `
-        <div class="task-item ${t.completed ? 'completed' : ''}" style="border-left-color:${catColor}">
-          <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask('${t.id}')">
-          <div class="task-content">
-            <div class="task-title">${escapeHtml(t.name)}</div>
-            <div class="task-meta">
-              <span style="color:${catColor}; font-weight:500">${escapeHtml(catName)}</span>
-              <span class="priority-badge priority-${t.priority}">${t.priority}</span>
-              ${t.notes ? `<span title="${escapeHtml(t.notes)}">📝 note</span>` : ''}
-            </div>
-          </div>
-          <div class="task-actions">
-            <button class="icon-btn" onclick="openTaskModal('${t.id}')" title="Edit">✏️</button>
-            <button class="icon-btn delete" onclick="deleteTask('${t.id}')" title="Delete">🗑️</button>
-          </div>
-        </div>`;
+    var btn = document.getElementById('saveTaskBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      var result;
+      if (state.editingTaskId) {
+        result = await sb
+          .from('tasks')
+          .update({ name: name, category_id: categoryId, priority: priority, notes: notes })
+          .eq('id', state.editingTaskId)
+          .select()
+          .single();
+      } else {
+        result = await sb
+          .from('tasks')
+          .insert({
+            name: name,
+            category_id: categoryId,
+            priority: priority,
+            notes: notes,
+            completed: false
+          })
+          .select()
+          .single();
+      }
+
+      if (result.error) {
+        alert('Failed to save: ' + result.error.message);
+        return;
+      }
+
+      // Optimistic local update
+      if (state.editingTaskId) {
+        var idx = state.tasks.findIndex(function(t) { return t.id === state.editingTaskId; });
+        if (idx !== -1) {
+          state.tasks[idx] = Object.assign({}, state.tasks[idx], result.data);
+        }
+      } else {
+        if (!state.tasks.find(function(t) { return t.id === result.data.id; })) {
+          state.tasks.unshift(result.data);
+        }
+      }
+
+      handleCloseTaskModal();
+      renderCategories();
+      renderTasks();
+    } catch (err) {
+      alert('Error saving task: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Task';
+    }
+  }
+
+  async function handleDeleteTask(id) {
+    if (!requireClient()) return;
+    if (!confirm('Delete this task?')) return;
+
+    try {
+      var result = await sb.from('tasks').delete().eq('id', id);
+      if (result.error) {
+        alert('Failed to delete: ' + result.error.message);
+        return;
+      }
+
+      state.tasks = state.tasks.filter(function(t) { return t.id !== id; });
+      renderCategories();
+      renderTasks();
+    } catch (err) {
+      alert('Error deleting task: ' + err.message);
+    }
+  }
+
+  async function handleToggleTask(id) {
+    if (!requireClient()) return;
+
+    var t = state.tasks.find(function(x) { return x.id === id; });
+    if (!t) return;
+
+    var newCompleted = !t.completed;
+
+    // Optimistic update
+    t.completed = newCompleted;
+    renderCategories();
+    renderTasks();
+
+    try {
+      var result = await sb
+        .from('tasks')
+        .update({ completed: newCompleted })
+        .eq('id', id);
+
+      if (result.error) {
+        t.completed = !newCompleted; // rollback
+        alert('Failed to update: ' + result.error.message);
+        renderCategories();
+        renderTasks();
+      }
+    } catch (err) {
+      t.completed = !newCompleted;
+      alert('Error updating task: ' + err.message);
+      renderCategories();
+      renderTasks();
+    }
+  }
+
+  function renderTasks() {
+    var list = document.getElementById('taskList');
+    if (!list) return;
+    if (state.loading.tasks) return; // keep spinner
+
+    var searchInput = document.getElementById('searchInput');
+    var filterSelect = document.getElementById('filterPriority');
+    var search = searchInput ? searchInput.value.toLowerCase() : '';
+    var prioFilter = filterSelect ? filterSelect.value : 'all';
+
+    var tasks = state.tasks.slice();
+
+    if (state.activeCategoryId !== 'all') {
+      tasks = tasks.filter(function(t) { return t.category_id === state.activeCategoryId; });
+    }
+
+    if (search) {
+      tasks = tasks.filter(function(t) {
+        var catName = (t.categories && t.categories.name) || '';
+        return t.name.toLowerCase().indexOf(search) !== -1 ||
+               (t.notes || '').toLowerCase().indexOf(search) !== -1 ||
+               catName.toLowerCase().indexOf(search) !== -1;
+      });
+    }
+
+    if (prioFilter !== 'all') {
+      tasks = tasks.filter(function(t) { return t.priority === prioFilter; });
+    }
+
+    var prioOrder = { high: 0, medium: 1, low: 2 };
+    tasks.sort(function(a, b) {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      if (prioOrder[a.priority] !== prioOrder[b.priority]) {
+        return prioOrder[a.priority] - prioOrder[b.priority];
+      }
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    if (tasks.length === 0) {
+      list.innerHTML =
+        '<div class="empty-state">' +
+          '<div class="emoji">✨</div>' +
+          '<p>' + (state.tasks.length === 0 ? 'No tasks yet. Create one to get started!' : 'No tasks match your filters.') + '</p>' +
+        '</div>';
+      return;
+    }
+
+    list.innerHTML = tasks.map(function(t) {
+      var cat = t.categories || state.categories.find(function(c) { return c.id === t.category_id; });
+      var catName = cat ? cat.name : 'Uncategorized';
+      var catColor = cat ? cat.color : '#6b7280';
+
+      return '<div class="task-item ' + (t.completed ? 'completed' : '') + '" data-id="' + t.id + '" style="border-left-color:' + catColor + '">' +
+        '<input type="checkbox" class="task-checkbox" ' + (t.completed ? 'checked' : '') + ' onchange="handleToggleTask(\'' + t.id + '\')">' +
+        '<div class="task-content">' +
+          '<div class="task-title">' + escapeHtml(t.name) + '</div>' +
+          '<div class="task-meta">' +
+            '<span style="color:' + catColor + '; font-weight:500">' + escapeHtml(catName) + '</span>' +
+            '<span class="priority-badge priority-' + t.priority + '">' + t.priority + '</span>' +
+            (t.notes ? '<span title="' + escapeHtml(t.notes) + '">📝 note</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="task-actions">' +
+          '<button class="icon-btn" onclick="handleOpenTaskModal(\'' + t.id + '\')" title="Edit">✏️</button>' +
+          '<button class="icon-btn delete" onclick="handleDeleteTask(\'' + t.id + '\')" title="Delete">🗑️</button>' +
+        '</div>' +
+      '</div>';
     }).join('');
   }
 
-  // ---------- Helpers ----------
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[c]));
+  // ============ REAL-TIME SYNC ============
+  function setupRealtime() {
+    if (!sb) {
+      console.warn('[TodoApp] Cannot setup realtime: no client');
+      return;
+    }
+
+    function flashTask(taskId) {
+      var el = document.querySelector('.task-item[data-id="' + taskId + '"]');
+      if (el) {
+        el.classList.add('flash');
+        setTimeout(function() {
+          el.classList.remove('flash');
+        }, 1000);
+      }
+    }
+
+    console.log('[TodoApp] Setting up realtime subscription...');
+
+    var channel = sb
+      .channel('todos-sync')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        async function(payload) {
+          console.log('[TodoApp] Category changed:', payload.eventType);
+          await loadCategories();
+          renderTasks();
+        })
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'tasks' },
+        function(payload) {
+          console.log('[TodoApp] Task inserted:', payload.new.id);
+          if (!state.tasks.find(function(t) { return t.id === payload.new.id; })) {
+            state.tasks.unshift(payload.new);
+            renderCategories();
+            renderTasks();
+            flashTask(payload.new.id);
+          }
+        })
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tasks' },
+        function(payload) {
+          console.log('[TodoApp] Task updated:', payload.new.id);
+          var idx = state.tasks.findIndex(function(t) { return t.id === payload.new.id; });
+          if (idx !== -1) {
+            state.tasks[idx] = Object.assign({}, state.tasks[idx], payload.new);
+            renderCategories();
+            renderTasks();
+            flashTask(payload.new.id);
+          }
+        })
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'tasks' },
+        function(payload) {
+          console.log('[TodoApp] Task deleted:', payload.old.id);
+          state.tasks = state.tasks.filter(function(t) { return t.id !== payload.old.id; });
+          renderCategories();
+          renderTasks();
+        })
+      .subscribe(function(status) {
+        console.log('[TodoApp] Realtime status:', status);
+        if (status === 'SUBSCRIBED') {
+          state.realtimeReady = true;
+          setConnectionStatus('connected', 'Connected • Live sync active');
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('', 'Realtime error — data still works');
+        }
+      });
+
+    return channel;
   }
 
-  // Close modal on overlay click
-  document.getElementById('taskModal').addEventListener('click', e => {
-    if (e.target.id === 'taskModal') closeTaskModal();
+  // ============ INIT ============
+  async function init() {
+    console.log('[TodoApp] Initializing...');
+
+    if (!isConfigured || !sb) {
+      setConnectionStatus('', 'Not configured');
+      showErrorIn('categoryList', 'Supabase not configured',
+        'Please set your Supabase credentials at the top of the script.',
+        [
+          'Go to <b>supabase.com</b> → your project → <b>Settings → API</b>',
+          'Copy the <b>Project URL</b> and <b>anon public key</b>',
+          'Replace <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> in the script',
+          'Refresh the page'
+        ]);
+      showErrorIn('taskList', 'Supabase not configured', 'See the Categories panel for setup steps.');
+      return;
+    }
+
+    setConnectionStatus('connecting', 'Connecting...');
+
+    try {
+      var results = await Promise.all([loadCategories(), loadTasks()]);
+      var catOk = results[0];
+      var taskOk = results[1];
+
+      if (catOk && taskOk) {
+        setupRealtime();
+      } else {
+        setConnectionStatus('', 'Connection error — check console');
+      }
+    } catch (err) {
+      console.error('[TodoApp] Init error:', err);
+      setConnectionStatus('', 'Initialization failed');
+      showErrorIn('categoryList', 'Initialization failed', err.message);
+    }
+  }
+
+  // ============ EXPOSE FUNCTIONS TO GLOBAL SCOPE ============
+  // These are called from onclick attributes in the HTML
+  window.handleAddCategory = handleAddCategory;
+  window.handleDeleteCategory = handleDeleteCategory;
+  window.handleSelectCategory = handleSelectCategory;
+  window.handleOpenTaskModal = handleOpenTaskModal;
+  window.handleCloseTaskModal = handleCloseTaskModal;
+  window.handleSaveTask = handleSaveTask;
+  window.handleDeleteTask = handleDeleteTask;
+  window.handleToggleTask = handleToggleTask;
+  window.renderTasks = renderTasks;
+
+  // ============ EVENT LISTENERS ============
+  document.addEventListener('DOMContentLoaded', function() {
+    var modal = document.getElementById('taskModal');
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target.id === 'taskModal') {
+          handleCloseTaskModal();
+        }
+      });
+    }
+
+    var catNameInput = document.getElementById('catName');
+    if (catNameInput) {
+      catNameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          handleAddCategory();
+        }
+      });
+    }
+
+    init();
   });
 
-  // Enter key in category input
-  document.getElementById('catName').addEventListener('keydown', e => {
-    if (e.key === 'Enter') addCategory();
-  });
-
-  // Initial render
-  renderCategories();
-  renderTasks();
+  console.log('[TodoApp] Setup complete, waiting for DOMContentLoaded');
+})();
 </script>
 </body>
 </html>
